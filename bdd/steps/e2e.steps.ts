@@ -2,7 +2,7 @@ import { expect } from "bun:test";
 import { Given, Then, When } from "@deepracticex/bdd";
 import { OpenAIProviderAdapter } from "../../packages/core/src/provider/openai";
 import type { RegisteredProvider } from "../../packages/core/src/router/types";
-import { createRouterX } from "../../packages/server/src/app";
+import { createRouterX } from "../../packages/routerx/src/app";
 import type { RouterXWorld } from "../support/world";
 
 const ARK_API_KEY = process.env.ARK_API_KEY;

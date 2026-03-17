@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "bun run --env-file=.env.local packages/routerx/src/serve.ts",
     "build": "turbo build",
     "check": "biome check .",
     "check:fix": "biome check --write .",

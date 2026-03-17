@@ -3,7 +3,7 @@ import type { DataTable } from "@deepracticex/bdd";
 import { Given, Then, When } from "@deepracticex/bdd";
 import type { CanonicalRequest } from "../../packages/core/src/canonical/types";
 import type { RegisteredProvider } from "../../packages/core/src/router/types";
-import { createRouterX } from "../../packages/server/src/app";
+import { createRouterX } from "../../packages/routerx/src/app";
 import type { RouterXWorld } from "../support/world";
 
 // ============================================================================

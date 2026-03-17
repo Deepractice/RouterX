@@ -1,5 +1,7 @@
 {
-  "name": "@routerxjs/server",
+  "name": "routerxjs",
+  "description": "RouterX - Universal LLM API Router",
+  "license": "MIT",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
