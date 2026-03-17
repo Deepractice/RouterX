@@ -6,5 +6,5 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
-  external: ["@routerxjs/core", "hono"],
+  external: ["@routerxjs/core", "hono", "ai", "@ai-sdk/openai-compatible", "@ai-sdk/anthropic"],
 });

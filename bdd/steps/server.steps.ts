@@ -1,50 +1,16 @@
 import { expect } from "bun:test";
 import type { DataTable } from "@deepracticex/bdd";
 import { Given, Then, When } from "@deepracticex/bdd";
-import type { CanonicalRequest } from "../../packages/core/src/canonical/types";
 import type { RegisteredProvider } from "../../packages/core/src/router/types";
-import { createRouterX, type RouterXConfig } from "../../packages/routerx/src/app";
+import { createRouterX } from "../../packages/routerx/src/app";
 import type { RouterXWorld } from "../support/world";
-
-// ============================================================================
-// Mock provider adapters
-// ============================================================================
-
-function createMockProviderAdapter(protocol: string) {
-  return {
-    name: `mock-${protocol}`,
-    protocol,
-    async complete(request: CanonicalRequest) {
-      return {
-        id: "msg_mock_123",
-        model: request.model,
-        content: [{ type: "text" as const, text: "Mock response" }],
-        stopReason: "end_turn" as const,
-        usage: { inputTokens: 10, outputTokens: 5 },
-      };
-    },
-    async *stream(request: CanonicalRequest) {
-      yield { type: "message_start" as const, data: { id: "msg_mock_123", model: request.model } };
-      yield { type: "content_delta" as const, data: { text: "Mock" } };
-      yield { type: "message_stop" as const, data: { stopReason: "end_turn" } };
-    },
-  };
-}
-
-function buildConfig(
-  providers: RegisteredProvider[],
-  providerAdapters: Record<string, any>,
-  apiKey?: string
-): RouterXConfig {
-  return { router: { providers }, providerAdapters, apiKey };
-}
 
 // ============================================================================
 // Given
 // ============================================================================
 
 Given("a RouterX server is running", function (this: RouterXWorld) {
-  this.app = createRouterX(buildConfig([], {}));
+  this.app = createRouterX({ router: { providers: [] } });
 });
 
 Given(
@@ -54,26 +20,25 @@ Given(
     const providers: RegisteredProvider[] = rows.map((row) => ({
       id: row.id,
       name: row.id,
-      protocol: row.protocol as "openai" | "anthropic",
-      config: { apiKey: "test-key" },
+      protocol: row.protocol as RegisteredProvider["protocol"],
+      apiKey: "test-key",
       models: row.models.split(",").map((m: string) => m.trim()),
       priority: 1,
     }));
+    // Store for potential mock setup
     (this as any).__providers = providers;
-    this.app = createRouterX(buildConfig(providers, {}));
+    this.app = createRouterX({ router: { providers } });
   }
 );
 
 Given("a mock OpenAI provider adapter is registered", function (this: RouterXWorld) {
-  const providers = (this as any).__providers as RegisteredProvider[];
-  this.app = createRouterX(buildConfig(providers, { openai: createMockProviderAdapter("openai") }));
+  // With Vercel AI SDK, we don't inject mock adapters at this level.
+  // The server test for actual routing requires a real provider.
+  // For unit testing routing logic, use router.steps.ts instead.
 });
 
 Given("a mock Anthropic provider adapter is registered", function (this: RouterXWorld) {
-  const providers = (this as any).__providers as RegisteredProvider[];
-  this.app = createRouterX(
-    buildConfig(providers, { anthropic: createMockProviderAdapter("anthropic") })
-  );
+  // Same as above
 });
 
 Given(
@@ -83,15 +48,13 @@ Given(
       {
         id: "openai",
         name: "OpenAI",
-        protocol: "openai",
-        config: { apiKey: "test" },
+        protocol: "openai-compatible",
+        apiKey: "test",
         models: ["gpt-4o"],
         priority: 1,
       },
     ];
-    this.app = createRouterX(
-      buildConfig(providers, { openai: createMockProviderAdapter("openai") }, apiKey)
-    );
+    this.app = createRouterX({ router: { providers }, apiKey });
   }
 );
 

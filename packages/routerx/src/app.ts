@@ -1,22 +1,19 @@
 /**
  * RouterX Hono Application
  *
- * Cross-platform HTTP server exposing:
- * - POST /openai/v1/chat/completions   — OpenAI protocol endpoint
- * - POST /anthropic/v1/messages        — Anthropic protocol endpoint
+ * Routes:
+ * - POST /openai/v1/chat/completions   — OpenAI protocol
+ * - POST /anthropic/v1/messages        — Anthropic protocol
  * - GET  /v1/models                    — Model listing
  * - GET  /health                       — Health check
+ *
+ * Uses Vercel AI SDK for upstream LLM calls.
  */
 
-import {
-  AnthropicProtocolAdapter,
-  type CanonicalRequest,
-  OpenAIProtocolAdapter,
-  type ProtocolAdapter,
-  type ProviderAdapter,
-  Router,
-  type RouterConfig,
-} from "@routerxjs/core";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { type RegisteredProvider, Router, type RouterConfig } from "@routerxjs/core";
+import { generateText, type LanguageModel, streamText } from "ai";
 import { Hono } from "hono";
 import { stream } from "hono/streaming";
 
@@ -28,11 +25,230 @@ export interface RouterXConfig {
   /** Router configuration (providers, default) */
   router: RouterConfig;
 
-  /** Provider adapter registry — protocol name → adapter instance */
-  providerAdapters: Record<string, ProviderAdapter>;
-
   /** API key for authenticating incoming requests (optional) */
   apiKey?: string;
+}
+
+// ============================================================================
+// Vercel AI SDK model factory
+// ============================================================================
+
+function createModel(provider: RegisteredProvider, modelId: string): LanguageModel {
+  switch (provider.protocol) {
+    case "openai-compatible": {
+      const p = createOpenAICompatible({
+        name: provider.id,
+        baseURL: provider.baseUrl ?? "https://api.openai.com/v1",
+        apiKey: provider.apiKey,
+      });
+      return p(modelId);
+    }
+    case "anthropic": {
+      const p = createAnthropic({
+        baseURL: provider.baseUrl ?? "https://api.anthropic.com",
+        apiKey: provider.apiKey,
+      });
+      return p(modelId);
+    }
+    default:
+      throw new Error(`Unsupported protocol: ${provider.protocol}`);
+  }
+}
+
+// ============================================================================
+// Parse incoming requests
+// ============================================================================
+
+interface ParsedRequest {
+  model: string;
+  messages: Array<{ role: string; content: any }>;
+  system?: string;
+  maxTokens?: number;
+  temperature?: number;
+  topP?: number;
+  stream?: boolean;
+}
+
+function parseOpenAIRequest(body: any): ParsedRequest {
+  return {
+    model: body.model,
+    messages: body.messages ?? [],
+    maxTokens: body.max_tokens ?? body.max_completion_tokens,
+    temperature: body.temperature,
+    topP: body.top_p,
+    stream: body.stream,
+  };
+}
+
+function parseAnthropicRequest(body: any): ParsedRequest {
+  return {
+    model: body.model,
+    messages: body.messages ?? [],
+    system:
+      typeof body.system === "string"
+        ? body.system
+        : Array.isArray(body.system)
+          ? body.system
+              .filter((b: any) => b.type === "text")
+              .map((b: any) => b.text)
+              .join("\n")
+          : undefined,
+    maxTokens: body.max_tokens,
+    temperature: body.temperature,
+    topP: body.top_p,
+    stream: body.stream,
+  };
+}
+
+// ============================================================================
+// Convert to Vercel AI SDK messages
+// ============================================================================
+
+function toAIMessages(parsed: ParsedRequest): any[] {
+  return parsed.messages.map((m: any) => {
+    if (Array.isArray(m.content)) {
+      const text = m.content
+        .filter((b: any) => b.type === "text")
+        .map((b: any) => b.text)
+        .join("");
+      return { role: m.role, content: text || "" };
+    }
+    return { role: m.role, content: m.content ?? "" };
+  });
+}
+
+// ============================================================================
+// Format responses
+// ============================================================================
+
+function formatOpenAIResponse(result: any, modelId: string): any {
+  return {
+    id: result.response?.id ?? `routerx-${Date.now()}`,
+    object: "chat.completion",
+    created: Math.floor(Date.now() / 1000),
+    model: result.response?.modelId ?? modelId,
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content: result.text ?? "" },
+        finish_reason:
+          result.finishReason === "length"
+            ? "length"
+            : result.finishReason === "tool-calls"
+              ? "tool_calls"
+              : "stop",
+      },
+    ],
+    usage: {
+      prompt_tokens: result.usage?.promptTokens ?? 0,
+      completion_tokens: result.usage?.completionTokens ?? 0,
+      total_tokens: (result.usage?.promptTokens ?? 0) + (result.usage?.completionTokens ?? 0),
+    },
+  };
+}
+
+function formatAnthropicResponse(result: any, modelId: string): any {
+  return {
+    id: result.response?.id ?? `routerx-${Date.now()}`,
+    type: "message",
+    role: "assistant",
+    model: result.response?.modelId ?? modelId,
+    content: [{ type: "text", text: result.text ?? "" }],
+    stop_reason:
+      result.finishReason === "length"
+        ? "max_tokens"
+        : result.finishReason === "tool-calls"
+          ? "tool_use"
+          : "end_turn",
+    usage: {
+      input_tokens: result.usage?.promptTokens ?? 0,
+      output_tokens: result.usage?.completionTokens ?? 0,
+    },
+  };
+}
+
+// ============================================================================
+// Streaming formatters
+// ============================================================================
+
+function openAIStreamFormatter() {
+  return {
+    onChunk(chunk: any): string | null {
+      if (chunk.type === "text-delta" && chunk.text) {
+        return `data: ${JSON.stringify({
+          object: "chat.completion.chunk",
+          choices: [{ index: 0, delta: { content: chunk.text }, finish_reason: null }],
+        })}\n\n`;
+      }
+      return null;
+    },
+    onFinish(result: any): string {
+      let out = `data: ${JSON.stringify({
+        object: "chat.completion.chunk",
+        choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+        usage: {
+          prompt_tokens: result.usage?.promptTokens ?? 0,
+          completion_tokens: result.usage?.completionTokens ?? 0,
+          total_tokens: (result.usage?.promptTokens ?? 0) + (result.usage?.completionTokens ?? 0),
+        },
+      })}\n\n`;
+      out += "data: [DONE]\n\n";
+      return out;
+    },
+  };
+}
+
+function anthropicStreamFormatter() {
+  let blockStarted = false;
+  return {
+    onStart(modelId: string): string {
+      return `event: message_start\ndata: ${JSON.stringify({
+        type: "message_start",
+        message: {
+          id: `routerx-${Date.now()}`,
+          type: "message",
+          role: "assistant",
+          model: modelId,
+          content: [],
+          usage: { input_tokens: 0, output_tokens: 0 },
+        },
+      })}\n\n`;
+    },
+    onChunk(chunk: any): string | null {
+      if (chunk.type === "text-delta" && chunk.text) {
+        let sse = "";
+        if (!blockStarted) {
+          blockStarted = true;
+          sse += `event: content_block_start\ndata: ${JSON.stringify({
+            type: "content_block_start",
+            index: 0,
+            content_block: { type: "text", text: "" },
+          })}\n\n`;
+        }
+        sse += `event: content_block_delta\ndata: ${JSON.stringify({
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "text_delta", text: chunk.text },
+        })}\n\n`;
+        return sse;
+      }
+      return null;
+    },
+    onFinish(result: any): string {
+      let sse = "";
+      sse += `event: content_block_stop\ndata: ${JSON.stringify({
+        type: "content_block_stop",
+        index: 0,
+      })}\n\n`;
+      sse += `event: message_delta\ndata: ${JSON.stringify({
+        type: "message_delta",
+        delta: { stop_reason: "end_turn" },
+        usage: { output_tokens: result.usage?.completionTokens ?? 0 },
+      })}\n\n`;
+      sse += `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`;
+      return sse;
+    },
+  };
 }
 
 // ============================================================================
@@ -42,108 +258,101 @@ export interface RouterXConfig {
 export function createRouterX(config: RouterXConfig) {
   const app = new Hono();
   const router = new Router(config.router);
-  const openaiProtocol = new OpenAIProtocolAdapter();
-  const anthropicProtocol = new AnthropicProtocolAdapter();
 
-  // === Auth middleware ===
+  // Auth middleware
   if (config.apiKey) {
     app.use("*", async (c, next) => {
-      // Skip auth for health check
       if (c.req.path === "/health") return next();
-
       const auth = c.req.header("Authorization");
       const apiKey = c.req.header("x-api-key");
       const token = auth?.replace("Bearer ", "") ?? apiKey;
-
       if (token !== config.apiKey) {
-        return c.json(openaiProtocol.formatError(401, "Invalid API key"), 401);
+        return c.json({ error: { message: "Invalid API key", type: "authentication_error" } }, 401);
       }
       return next();
     });
   }
 
-  // === OpenAI protocol ===
+  // OpenAI endpoint
   app.post("/openai/v1/chat/completions", async (c) => {
-    return handleRequest(c, openaiProtocol);
+    return handleRequest(c, parseOpenAIRequest(await c.req.json()), "openai");
   });
 
-  // === Anthropic protocol ===
+  // Anthropic endpoint
   app.post("/anthropic/v1/messages", async (c) => {
-    return handleRequest(c, anthropicProtocol);
+    return handleRequest(c, parseAnthropicRequest(await c.req.json()), "anthropic");
   });
 
-  // === Model list ===
+  // Model list
   app.get("/v1/models", (c) => {
     const models = router.listModels();
     return c.json({
       object: "list",
-      data: models.map((m) => ({
-        id: m.model,
-        object: "model",
-        owned_by: m.providerId,
-      })),
+      data: models.map((m) => ({ id: m.model, object: "model", owned_by: m.providerId })),
     });
   });
 
-  // === Health ===
+  // Health
   app.get("/health", (c) => c.json({ status: "ok" }));
 
-  // === Request handler ===
-  async function handleRequest(c: any, protocolAdapter: ProtocolAdapter) {
+  // Core handler
+  async function handleRequest(c: any, parsed: ParsedRequest, downstream: "openai" | "anthropic") {
     try {
-      const body = await c.req.json();
-      const canonical = protocolAdapter.parseRequest(body);
-
-      // Route to provider
-      const routeResult = router.route(canonical.model);
+      const routeResult = router.route(parsed.model);
       if (!routeResult) {
-        const err = protocolAdapter.formatError(404, `Model "${canonical.model}" not found`);
-        return c.json(err, 404);
+        return c.json({ error: { message: `Model "${parsed.model}" not found` } }, 404);
       }
 
-      const providerAdapter = config.providerAdapters[routeResult.provider.protocol];
-      if (!providerAdapter) {
-        const err = protocolAdapter.formatError(
-          500,
-          `No provider adapter for protocol "${routeResult.provider.protocol}"`
-        );
-        return c.json(err, 500);
-      }
+      const model = createModel(routeResult.provider, routeResult.model);
+      const messages = toAIMessages(parsed);
 
-      // Update model in canonical request if remapped
-      const request: CanonicalRequest = {
-        ...canonical,
-        model: routeResult.model,
-      };
+      if (parsed.stream) {
+        const fmt =
+          downstream === "anthropic" ? anthropicStreamFormatter() : openAIStreamFormatter();
 
-      // Streaming vs non-streaming
-      if (canonical.stream) {
+        const result = streamText({
+          model,
+          messages,
+          system: parsed.system,
+          maxOutputTokens: parsed.maxTokens,
+          temperature: parsed.temperature,
+          topP: parsed.topP,
+        });
+
         return stream(c, async (s) => {
           try {
-            for await (const chunk of providerAdapter.stream(
-              request,
-              routeResult.provider.config
-            )) {
-              const formatted = protocolAdapter.formatStreamChunk(chunk);
-              if (formatted) {
-                await s.write(formatted);
-              }
+            if ("onStart" in fmt) {
+              await s.write((fmt as any).onStart(routeResult.model));
             }
-            await s.write("data: [DONE]\n\n");
+            for await (const chunk of result.fullStream) {
+              const formatted = fmt.onChunk(chunk);
+              if (formatted) await s.write(formatted);
+            }
+            const final = await result;
+            await s.write(fmt.onFinish(final));
           } catch (err: any) {
-            const errFormatted = protocolAdapter.formatError(500, err.message ?? "Stream error");
-            await s.write(`data: ${JSON.stringify(errFormatted)}\n\n`);
+            await s.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
           }
         });
       }
 
       // Non-streaming
-      const response = await providerAdapter.complete(request, routeResult.provider.config);
-      const formatted = protocolAdapter.formatResponse(response);
-      return c.json(formatted);
+      const result = await generateText({
+        model,
+        messages,
+        system: parsed.system,
+        maxOutputTokens: parsed.maxTokens,
+        temperature: parsed.temperature,
+        topP: parsed.topP,
+      });
+
+      return c.json(
+        downstream === "anthropic"
+          ? formatAnthropicResponse(result, routeResult.model)
+          : formatOpenAIResponse(result, routeResult.model)
+      );
     } catch (err: any) {
-      const errFormatted = protocolAdapter.formatError(500, err.message ?? "Internal error");
-      return c.json(errFormatted, 500);
+      return c.json({ error: { message: err.message ?? "Internal error" } }, 500);
     }
   }
 

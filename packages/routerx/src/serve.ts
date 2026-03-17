@@ -1,13 +1,9 @@
 /**
- * Local development server entry point
+ * Local development server
  *
- * Usage:
- *   bun run packages/routerx/src/serve.ts
- *
- * Reads .env.local for provider configuration.
+ * Usage: bun run dev
  */
 
-import { OpenAIProviderAdapter } from "@routerxjs/core";
 import { serve } from "bun";
 import { createRouterX } from "./app";
 
@@ -25,11 +21,9 @@ const app = createRouterX({
       {
         id: "ark",
         name: "Volcengine Ark",
-        protocol: "openai",
-        config: {
-          apiKey: ARK_API_KEY,
-          baseUrl: ARK_BASE_URL,
-        },
+        protocol: "openai-compatible",
+        apiKey: ARK_API_KEY,
+        baseUrl: ARK_BASE_URL,
         models: [
           "deepseek-v3-2-251201",
           "deepseek-v3-250324",
@@ -44,9 +38,6 @@ const app = createRouterX({
         priority: 1,
       },
     ],
-  },
-  providerAdapters: {
-    openai: new OpenAIProviderAdapter(),
   },
 });
 
@@ -64,6 +55,4 @@ Endpoints:
   POST /anthropic/v1/messages        (Anthropic protocol)
   GET  /v1/models                    (list models)
   GET  /health                       (health check)
-
-Models: deepseek-v3-2-251201, doubao-1-5-pro-32k-250115, ...
 `);

@@ -2,7 +2,10 @@
  * Router Types — routing configuration and model matching
  */
 
-import type { ProviderConfig } from "../provider/types";
+/**
+ * Supported upstream provider protocols
+ */
+export type ProviderProtocol = "openai-compatible" | "anthropic";
 
 /**
  * A registered upstream provider with its capabilities
@@ -14,11 +17,14 @@ export interface RegisteredProvider {
   /** Display name */
   name: string;
 
-  /** Protocol this provider speaks (determines which ProviderAdapter to use) */
-  protocol: "openai" | "anthropic";
+  /** Protocol this provider speaks */
+  protocol: ProviderProtocol;
 
-  /** Provider connection config */
-  config: ProviderConfig;
+  /** API key */
+  apiKey: string;
+
+  /** Custom base URL */
+  baseUrl?: string;
 
   /** Models this provider can serve */
   models: string[];

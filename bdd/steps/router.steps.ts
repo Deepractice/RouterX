@@ -13,8 +13,8 @@ Given("the following providers are registered:", (dataTable: DataTable) => {
   const providers: RegisteredProvider[] = rows.map((row) => ({
     id: row.id,
     name: row.name,
-    protocol: row.protocol as "openai" | "anthropic",
-    config: { apiKey: "test-key" },
+    protocol: row.protocol as RegisteredProvider["protocol"],
+    apiKey: "test-key",
     models: row.models.split(",").map((m: string) => m.trim()),
     priority: parseInt(row.priority, 10),
     enabled: row.enabled === undefined ? true : row.enabled === "true",

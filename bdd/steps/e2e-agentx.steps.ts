@@ -2,46 +2,38 @@ import { expect } from "bun:test";
 import type { Driver } from "@agentxjs/core/driver";
 import { createMonoDriver } from "@agentxjs/mono-driver";
 import { Given, Then, When } from "@deepracticex/bdd";
-import { OpenAIProviderAdapter } from "../../packages/core/src/provider/openai";
-import type { RegisteredProvider } from "../../packages/core/src/router/types";
 import { createRouterX } from "../../packages/routerx/src/app";
 
 const ARK_API_KEY = process.env.ARK_API_KEY;
 const ARK_BASE_URL = process.env.ARK_BASE_URL;
 
-let app: ReturnType<typeof createRouterX>;
 let server: any;
 let driver: Driver;
 let collectedText: string;
 
-function ensureEnv() {
+function ensureServer() {
+  if (server) return;
   if (!ARK_API_KEY || !ARK_BASE_URL) {
     throw new Error("ARK_API_KEY and ARK_BASE_URL must be set");
   }
-}
 
-function startRouterX() {
-  const providers: RegisteredProvider[] = [
-    {
-      id: "ark",
-      name: "Volcengine Ark",
-      protocol: "openai",
-      config: { apiKey: ARK_API_KEY!, baseUrl: ARK_BASE_URL! },
-      models: ["deepseek-v3-2-251201"],
-      priority: 1,
+  const app = createRouterX({
+    router: {
+      providers: [
+        {
+          id: "ark",
+          name: "Volcengine Ark",
+          protocol: "openai-compatible",
+          apiKey: ARK_API_KEY,
+          baseUrl: ARK_BASE_URL,
+          models: ["deepseek-v3-2-251201"],
+          priority: 1,
+        },
+      ],
     },
-  ];
-
-  app = createRouterX({
-    router: { providers },
-    providerAdapters: { openai: new OpenAIProviderAdapter() },
   });
 
-  // Start a real HTTP server so mono-driver can connect
-  server = Bun.serve({
-    fetch: app.fetch,
-    port: 3799,
-  });
+  server = Bun.serve({ fetch: app.fetch, port: 3799 });
 }
 
 // ============================================================================
@@ -49,8 +41,7 @@ function startRouterX() {
 // ============================================================================
 
 Given("RouterX is running locally", () => {
-  ensureEnv();
-  if (!server) startRouterX();
+  ensureServer();
 });
 
 Given("AgentX is configured to use RouterX with Anthropic protocol", async () => {
@@ -85,8 +76,7 @@ Given("AgentX is configured to use RouterX with OpenAI protocol", async () => {
 
 When("I send a message {string} through AgentX", async (message: string) => {
   collectedText = "";
-  const events = driver.receive({ content: message });
-  for await (const event of events) {
+  for await (const event of driver.receive({ content: message })) {
     if (event.type === "text_delta") {
       collectedText += (event.data as any).text;
     }

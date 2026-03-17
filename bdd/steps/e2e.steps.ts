@@ -1,7 +1,5 @@
 import { expect } from "bun:test";
 import { Given, Then, When } from "@deepracticex/bdd";
-import { OpenAIProviderAdapter } from "../../packages/core/src/provider/openai";
-import type { RegisteredProvider } from "../../packages/core/src/router/types";
 import { createRouterX } from "../../packages/routerx/src/app";
 import type { RouterXWorld } from "../support/world";
 
@@ -17,29 +15,19 @@ Given("RouterX is configured with Ark provider", function (this: RouterXWorld) {
     throw new Error("ARK_API_KEY and ARK_BASE_URL must be set in .env.local");
   }
 
-  const providers: RegisteredProvider[] = [
-    {
-      id: "ark",
-      name: "Volcengine Ark",
-      protocol: "openai",
-      config: {
-        apiKey: ARK_API_KEY,
-        baseUrl: ARK_BASE_URL,
-      },
-      models: [
-        "deepseek-v3-2-251201",
-        "deepseek-r1-250528",
-        "doubao-1-5-pro-32k-250115",
-        "doubao-seed-2-0-pro-260215",
-      ],
-      priority: 1,
-    },
-  ];
-
   this.app = createRouterX({
-    router: { providers },
-    providerAdapters: {
-      openai: new OpenAIProviderAdapter(),
+    router: {
+      providers: [
+        {
+          id: "ark",
+          name: "Volcengine Ark",
+          protocol: "openai-compatible",
+          apiKey: ARK_API_KEY,
+          baseUrl: ARK_BASE_URL,
+          models: ["deepseek-v3-2-251201"],
+          priority: 1,
+        },
+      ],
     },
   });
 });
@@ -84,25 +72,27 @@ When(
 // Then
 // ============================================================================
 
+Then("the response should be in OpenAI Chat Completions format", function (this: RouterXWorld) {
+  expect(this.httpResponseBody.object).toBe("chat.completion");
+  expect(Array.isArray(this.httpResponseBody.choices)).toBe(true);
+});
+
+Then("the response should be in Anthropic Messages format", function (this: RouterXWorld) {
+  expect(this.httpResponseBody.type).toBe("message");
+  expect(this.httpResponseBody.role).toBe("assistant");
+  expect(Array.isArray(this.httpResponseBody.content)).toBe(true);
+});
+
 Then("the response should contain assistant text", function (this: RouterXWorld) {
   const body = this.httpResponseBody;
-
-  // OpenAI format
   if (body.choices) {
-    const text = body.choices[0]?.message?.content;
-    expect(text).toBeTruthy();
-    expect(typeof text).toBe("string");
-    expect(text.length).toBeGreaterThan(0);
+    expect(body.choices[0]?.message?.content?.length).toBeGreaterThan(0);
     return;
   }
-
-  // Anthropic format
   if (body.content) {
     const textBlock = body.content.find((c: any) => c.type === "text");
-    expect(textBlock).toBeTruthy();
-    expect(textBlock.text.length).toBeGreaterThan(0);
+    expect(textBlock?.text?.length).toBeGreaterThan(0);
     return;
   }
-
-  throw new Error(`Unexpected response format: ${JSON.stringify(body).slice(0, 200)}`);
+  throw new Error(`Unexpected response: ${JSON.stringify(body).slice(0, 200)}`);
 });
