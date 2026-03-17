@@ -26,7 +26,10 @@
       "import": "./dist/router/index.js"
     }
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",

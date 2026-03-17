@@ -1,1 +1,9 @@
-export type { CanonicalRequest, CanonicalResponse, CanonicalMessage, CanonicalStreamChunk } from "./types";
+export type {
+  CanonicalContentBlock,
+  CanonicalMessage,
+  CanonicalRequest,
+  CanonicalResponse,
+  CanonicalStreamChunk,
+  CanonicalTool,
+  StopReason,
+} from "./types";

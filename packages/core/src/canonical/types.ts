@@ -46,12 +46,6 @@ export interface CanonicalResponse {
 }
 
 export interface CanonicalStreamChunk {
-  type:
-    | "message_start"
-    | "content_delta"
-    | "tool_call_delta"
-    | "message_stop"
-    | "usage"
-    | "error";
+  type: "message_start" | "content_delta" | "tool_call_delta" | "message_stop" | "usage" | "error";
   data: unknown;
 }
