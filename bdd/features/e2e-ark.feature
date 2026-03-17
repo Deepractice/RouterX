@@ -5,7 +5,7 @@ Feature: End-to-End — Volcengine Ark Provider
 
   Scenario: OpenAI client → Ark provider (non-streaming)
     Given RouterX is configured with Ark provider
-    When I send an OpenAI format request to "/v1/chat/completions" with model "deepseek-v3-2-251201":
+    When I send an OpenAI format request to "/openai/v1/chat/completions" with model "deepseek-v3-2-251201":
       """
       Say "hello" in one word. Nothing else.
       """
@@ -15,7 +15,7 @@ Feature: End-to-End — Volcengine Ark Provider
 
   Scenario: Anthropic client → Ark provider (cross-protocol, non-streaming)
     Given RouterX is configured with Ark provider
-    When I send an Anthropic format request to "/v1/messages" with model "deepseek-v3-2-251201":
+    When I send an Anthropic format request to "/anthropic/v1/messages" with model "deepseek-v3-2-251201":
       """
       Say "hello" in one word. Nothing else.
       """

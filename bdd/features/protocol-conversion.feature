@@ -7,7 +7,7 @@ Feature: Cross-Protocol Conversion
     Given a RouterX server with cross-protocol routing:
       | downstream | upstream | model  |
       | anthropic  | openai   | gpt-4o |
-    When I POST "/v1/messages" with Anthropic format for model "gpt-4o"
+    When I POST "/anthropic/v1/messages" with Anthropic format for model "gpt-4o"
     Then the response status should be 200
     And the response should be in Anthropic Messages format
     And the mock provider should have received an OpenAI format request
@@ -16,7 +16,7 @@ Feature: Cross-Protocol Conversion
     Given a RouterX server with cross-protocol routing:
       | downstream | upstream  | model                    |
       | openai     | anthropic | claude-sonnet-4-20250514 |
-    When I POST "/v1/chat/completions" with OpenAI format for model "claude-sonnet-4-20250514"
+    When I POST "/openai/v1/chat/completions" with OpenAI format for model "claude-sonnet-4-20250514"
     Then the response status should be 200
     And the response should be in OpenAI Chat Completions format
     And the mock provider should have received an Anthropic format request
@@ -25,6 +25,6 @@ Feature: Cross-Protocol Conversion
     Given a RouterX server with cross-protocol routing:
       | downstream | upstream | model  |
       | anthropic  | openai   | gpt-4o |
-    When I POST "/v1/messages" with Anthropic format with tools for model "gpt-4o"
+    When I POST "/anthropic/v1/messages" with Anthropic format with tools for model "gpt-4o"
     Then the response status should be 200
     And the mock provider should have received tools in its native format

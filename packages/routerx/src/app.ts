@@ -2,9 +2,10 @@
  * RouterX Hono Application
  *
  * Cross-platform HTTP server exposing:
- * - POST /v1/chat/completions — OpenAI protocol endpoint
- * - POST /v1/messages — Anthropic protocol endpoint
- * - POST /rpc — Management API
+ * - POST /openai/v1/chat/completions   — OpenAI protocol endpoint
+ * - POST /anthropic/v1/messages        — Anthropic protocol endpoint
+ * - GET  /v1/models                    — Model listing
+ * - GET  /health                       — Health check
  */
 
 import {
@@ -47,6 +48,9 @@ export function createRouterX(config: RouterXConfig) {
   // === Auth middleware ===
   if (config.apiKey) {
     app.use("*", async (c, next) => {
+      // Skip auth for health check
+      if (c.req.path === "/health") return next();
+
       const auth = c.req.header("Authorization");
       const apiKey = c.req.header("x-api-key");
       const token = auth?.replace("Bearer ", "") ?? apiKey;
@@ -58,13 +62,13 @@ export function createRouterX(config: RouterXConfig) {
     });
   }
 
-  // === OpenAI endpoint ===
-  app.post("/v1/chat/completions", async (c) => {
+  // === OpenAI protocol ===
+  app.post("/openai/v1/chat/completions", async (c) => {
     return handleRequest(c, openaiProtocol);
   });
 
-  // === Anthropic endpoint ===
-  app.post("/v1/messages", async (c) => {
+  // === Anthropic protocol ===
+  app.post("/anthropic/v1/messages", async (c) => {
     return handleRequest(c, anthropicProtocol);
   });
 

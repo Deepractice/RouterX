@@ -60,10 +60,10 @@ serve({
 console.log(`RouterX running on http://localhost:${PORT}`);
 console.log(`
 Endpoints:
-  POST /v1/chat/completions   (OpenAI format)
-  POST /v1/messages           (Anthropic format)
-  GET  /v1/models             (list models)
-  GET  /health                (health check)
+  POST /openai/v1/chat/completions   (OpenAI protocol)
+  POST /anthropic/v1/messages        (Anthropic protocol)
+  GET  /v1/models                    (list models)
+  GET  /health                       (health check)
 
 Models: deepseek-v3-2-251201, doubao-1-5-pro-32k-250115, ...
 `);

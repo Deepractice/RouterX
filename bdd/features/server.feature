@@ -21,7 +21,7 @@ Feature: Hono Server Endpoints
       | id     | protocol | models |
       | openai | openai   | gpt-4o |
     And a mock OpenAI provider adapter is registered
-    When I POST "/v1/chat/completions" with:
+    When I POST "/openai/v1/chat/completions" with:
       """
       {
         "model": "gpt-4o",
@@ -36,7 +36,7 @@ Feature: Hono Server Endpoints
       | id        | protocol  | models                   |
       | anthropic | anthropic | claude-sonnet-4-20250514 |
     And a mock Anthropic provider adapter is registered
-    When I POST "/v1/messages" with:
+    When I POST "/anthropic/v1/messages" with:
       """
       {
         "model": "claude-sonnet-4-20250514",
@@ -51,7 +51,7 @@ Feature: Hono Server Endpoints
     Given a RouterX server is running with providers:
       | id     | protocol | models |
       | openai | openai   | gpt-4o |
-    When I POST "/v1/chat/completions" with:
+    When I POST "/openai/v1/chat/completions" with:
       """
       {
         "model": "nonexistent-model",
@@ -62,7 +62,7 @@ Feature: Hono Server Endpoints
 
   Scenario: Auth required when API key configured
     Given a RouterX server is running with API key "test-secret"
-    When I POST "/v1/chat/completions" without auth with:
+    When I POST "/openai/v1/chat/completions" without auth with:
       """
       {
         "model": "gpt-4o",
