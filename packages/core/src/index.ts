@@ -15,6 +15,7 @@ export { AnthropicProtocolAdapter, OpenAIProtocolAdapter } from "./protocol/inde
 
 // Provider adapters
 export type { ProviderAdapter, ProviderConfig } from "./provider/index";
+export { OpenAIProviderAdapter } from "./provider/index";
 export type { RegisteredProvider, RouteResult, RouterConfig } from "./router/index";
 // Router
 export { Router } from "./router/index";
