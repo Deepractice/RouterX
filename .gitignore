@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.turbo/
+*.log
+.env.local
+.env.*.local
+.DS_Store
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+.idea/
+.vscode/
+*.swp
+coverage/
+bdd/reports/
