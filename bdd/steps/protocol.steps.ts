@@ -190,13 +190,15 @@ When("the Anthropic protocol adapter formats the stream chunk", function (this: 
 // ============================================================================
 
 Then("the SSE data should be valid JSON", function (this: RouterXWorld) {
-  expect(() => JSON.parse(this.formattedStreamChunk!)).not.toThrow();
+  const raw = this.formattedStreamChunk!;
+  const dataMatch = raw.match(/data: ({.*})/);
+  const jsonStr = dataMatch ? dataMatch[1] : raw;
+  expect(() => JSON.parse(jsonStr)).not.toThrow();
 });
 
 Then(
   "the SSE data should have field {string} with value {string}",
   function (this: RouterXWorld, path: string, value: string) {
-    // For Anthropic SSE, data is after "data: " prefix; for OpenAI it's raw JSON
     const raw = this.formattedStreamChunk!;
     const dataMatch = raw.match(/data: ({.*})/);
     const jsonStr = dataMatch ? dataMatch[1] : raw;
@@ -209,7 +211,10 @@ Then(
 Then(
   "the SSE data should have a delta with content {string}",
   function (this: RouterXWorld, content: string) {
-    const parsed = JSON.parse(this.formattedStreamChunk!);
+    const raw = this.formattedStreamChunk!;
+    const dataMatch = raw.match(/data: ({.*})/);
+    const jsonStr = dataMatch ? dataMatch[1] : raw;
+    const parsed = JSON.parse(jsonStr);
     expect(parsed.choices[0].delta.content).toBe(content);
   }
 );

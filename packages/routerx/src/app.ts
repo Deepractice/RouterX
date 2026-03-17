@@ -126,7 +126,7 @@ export function createRouterX(config: RouterXConfig) {
             )) {
               const formatted = protocolAdapter.formatStreamChunk(chunk);
               if (formatted) {
-                await s.write(`data: ${formatted}\n\n`);
+                await s.write(formatted);
               }
             }
             await s.write("data: [DONE]\n\n");

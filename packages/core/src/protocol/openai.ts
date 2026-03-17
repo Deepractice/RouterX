@@ -202,34 +202,38 @@ export class OpenAIProtocolAdapter implements ProtocolAdapter {
   }
 
   formatStreamChunk(chunk: CanonicalStreamChunk): string {
+    let json: string;
     switch (chunk.type) {
       case "message_start": {
         const d = chunk.data as { id: string; model: string };
-        return JSON.stringify({
+        json = JSON.stringify({
           id: d.id,
           object: "chat.completion.chunk",
           created: Math.floor(Date.now() / 1000),
           model: d.model,
           choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }],
         });
+        break;
       }
       case "content_delta": {
         const d = chunk.data as { text: string };
-        return JSON.stringify({
+        json = JSON.stringify({
           object: "chat.completion.chunk",
           choices: [{ index: 0, delta: { content: d.text }, finish_reason: null }],
         });
+        break;
       }
       case "message_stop": {
         const d = chunk.data as { stopReason: StopReason };
-        return JSON.stringify({
+        json = JSON.stringify({
           object: "chat.completion.chunk",
           choices: [{ index: 0, delta: {}, finish_reason: mapStopReason(d.stopReason) }],
         });
+        break;
       }
       case "usage": {
         const d = chunk.data as { inputTokens: number; outputTokens: number };
-        return JSON.stringify({
+        json = JSON.stringify({
           object: "chat.completion.chunk",
           usage: {
             prompt_tokens: d.inputTokens,
@@ -237,10 +241,12 @@ export class OpenAIProtocolAdapter implements ProtocolAdapter {
             total_tokens: d.inputTokens + d.outputTokens,
           },
         });
+        break;
       }
       default:
         return "";
     }
+    return `data: ${json}\n\n`;
   }
 
   formatError(
