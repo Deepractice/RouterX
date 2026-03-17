@@ -190,25 +190,45 @@ export class AnthropicProtocolAdapter implements ProtocolAdapter {
             role: "assistant",
             model: d.model,
             content: [],
+            usage: { input_tokens: 0, output_tokens: 0 },
           },
         })}\n\n`;
       }
       case "content_delta": {
-        const d = chunk.data as { text: string };
-        return `event: content_block_delta\ndata: ${JSON.stringify({
+        const d = chunk.data as { text: string; first?: boolean };
+        let sse = "";
+        // Emit content_block_start on first delta
+        if (d.first) {
+          sse += `event: content_block_start\ndata: ${JSON.stringify({
+            type: "content_block_start",
+            index: 0,
+            content_block: { type: "text", text: "" },
+          })}\n\n`;
+        }
+        sse += `event: content_block_delta\ndata: ${JSON.stringify({
           type: "content_block_delta",
           index: 0,
           delta: { type: "text_delta", text: d.text },
         })}\n\n`;
+        return sse;
       }
       case "message_stop": {
         const d = chunk.data as { stopReason: StopReason };
-        return `event: message_delta\ndata: ${JSON.stringify({
+        let sse = "";
+        // content_block_stop before message_delta
+        sse += `event: content_block_stop\ndata: ${JSON.stringify({
+          type: "content_block_stop",
+          index: 0,
+        })}\n\n`;
+        sse += `event: message_delta\ndata: ${JSON.stringify({
           type: "message_delta",
           delta: { stop_reason: d.stopReason },
-        })}\n\nevent: message_stop\ndata: ${JSON.stringify({
+          usage: { output_tokens: 0 },
+        })}\n\n`;
+        sse += `event: message_stop\ndata: ${JSON.stringify({
           type: "message_stop",
         })}\n\n`;
+        return sse;
       }
       case "usage": {
         const d = chunk.data as { inputTokens: number; outputTokens: number };

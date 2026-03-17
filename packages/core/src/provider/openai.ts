@@ -157,6 +157,7 @@ export class OpenAIProviderAdapter implements ProviderAdapter {
     const decoder = new TextDecoder();
     let buffer = "";
     let started = false;
+    let firstContent = true;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -186,7 +187,8 @@ export class OpenAIProviderAdapter implements ProviderAdapter {
           }
 
           if (delta?.content) {
-            yield { type: "content_delta", data: { text: delta.content } };
+            yield { type: "content_delta", data: { text: delta.content, first: firstContent } };
+            firstContent = false;
           }
 
           if (finishReason) {
