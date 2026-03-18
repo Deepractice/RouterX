@@ -32,27 +32,7 @@ export interface RouterXConfig {
   apiKey?: string;
 }
 
-// ============================================================================
-// BaseURL normalization — each SDK expects a specific suffix
-// ============================================================================
-
-const PROTOCOL_BASE_SUFFIX: Record<string, string> = {
-  "openai-compatible": "/v1",
-  anthropic: "/v1",
-};
-
-const PROTOCOL_DEFAULT_BASE: Record<string, string> = {
-  "openai-compatible": "https://api.openai.com/v1",
-  anthropic: "https://api.anthropic.com/v1",
-};
-
-function normalizeBaseUrl(baseUrl: string, protocol: string): string {
-  const suffix = PROTOCOL_BASE_SUFFIX[protocol];
-  if (!suffix) return baseUrl;
-  const cleaned = baseUrl.replace(/\/+$/, "");
-  if (cleaned.endsWith(suffix)) return cleaned;
-  return cleaned + suffix;
-}
+import { normalizeBaseUrl, PROTOCOL_DEFAULT_BASE } from "./baseurl";
 
 // ============================================================================
 // Vercel AI SDK model factory
