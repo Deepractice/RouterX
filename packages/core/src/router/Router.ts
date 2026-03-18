@@ -2,9 +2,20 @@
  * Router — model matching and provider selection
  *
  * Given a model name, find the best provider to serve it.
+ * Supports model name mapping (client name → upstream provider name).
  */
 
-import type { RegisteredProvider, RouteResult, RouterConfig } from "./types";
+import type { ModelEntry, RegisteredProvider, RouteResult, RouterConfig } from "./types";
+
+/** Resolve a ModelEntry to its client-facing name */
+function modelName(entry: ModelEntry): string {
+  return typeof entry === "string" ? entry : entry.name;
+}
+
+/** Resolve a ModelEntry to its upstream name */
+function upstreamModelName(entry: ModelEntry): string {
+  return typeof entry === "string" ? entry : entry.upstreamModel;
+}
 
 export class Router {
   private providers: RegisteredProvider[];
@@ -19,14 +30,27 @@ export class Router {
    * Find the best provider for a given model
    */
   route(model: string): RouteResult | null {
-    // Find providers that explicitly list this model
-    const candidates = this.providers
-      .filter((p) => p.enabled !== false)
-      .filter((p) => p.models.includes(model))
-      .sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
+    // Find providers that have this model (by client-facing name)
+    const candidates: Array<{ provider: RegisteredProvider; entry: ModelEntry }> = [];
+
+    for (const provider of this.providers) {
+      if (provider.enabled === false) continue;
+      const entry = provider.models.find((m) => modelName(m) === model);
+      if (entry) {
+        candidates.push({ provider, entry });
+      }
+    }
+
+    // Sort by priority
+    candidates.sort((a, b) => (a.provider.priority ?? 100) - (b.provider.priority ?? 100));
 
     if (candidates.length > 0) {
-      return { provider: candidates[0], model };
+      const { provider, entry } = candidates[0];
+      return {
+        provider,
+        model,
+        upstreamModel: upstreamModelName(entry),
+      };
     }
 
     // Fallback to default provider
@@ -35,7 +59,7 @@ export class Router {
         (p) => p.id === this.defaultProviderId && p.enabled !== false
       );
       if (defaultProvider) {
-        return { provider: defaultProvider, model };
+        return { provider: defaultProvider, model, upstreamModel: model };
       }
     }
 
@@ -45,13 +69,24 @@ export class Router {
   /**
    * List all available models across all providers
    */
-  listModels(): Array<{ model: string; providerId: string; protocol: string }> {
-    const models: Array<{ model: string; providerId: string; protocol: string }> = [];
+  listModels(): Array<{
+    model: string;
+    upstreamModel: string;
+    providerId: string;
+    protocol: string;
+  }> {
+    const models: Array<{
+      model: string;
+      upstreamModel: string;
+      providerId: string;
+      protocol: string;
+    }> = [];
     for (const provider of this.providers) {
       if (provider.enabled === false) continue;
-      for (const model of provider.models) {
+      for (const entry of provider.models) {
         models.push({
-          model,
+          model: modelName(entry),
+          upstreamModel: upstreamModelName(entry),
           providerId: provider.id,
           protocol: provider.protocol,
         });

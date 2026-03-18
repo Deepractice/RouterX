@@ -2,11 +2,20 @@ import { expect } from "bun:test";
 import type { DataTable } from "@deepracticex/bdd";
 import { Given, Then, When } from "@deepracticex/bdd";
 import { Router } from "../../packages/core/src/router/Router";
-import type { RegisteredProvider, RouteResult } from "../../packages/core/src/router/types";
+import type {
+  ModelEntry,
+  RegisteredProvider,
+  RouteResult,
+} from "../../packages/core/src/router/types";
 
 let router: Router;
 let routeResult: RouteResult | null;
-let modelList: Array<{ model: string; providerId: string; protocol: string }>;
+let modelList: Array<{
+  model: string;
+  upstreamModel: string;
+  providerId: string;
+  protocol: string;
+}>;
 
 Given("the following providers are registered:", (dataTable: DataTable) => {
   const rows = dataTable.hashes();
@@ -23,9 +32,27 @@ Given("the following providers are registered:", (dataTable: DataTable) => {
 });
 
 Given("the default provider is {string}", (providerId: string) => {
-  // Recreate router with default
   const currentProviders = (router as any).providers as RegisteredProvider[];
   router = new Router({ providers: currentProviders, defaultProviderId: providerId });
+});
+
+Given("a provider {string} with mapped models:", (providerId: string, dataTable: DataTable) => {
+  const rows = dataTable.hashes();
+  const models: ModelEntry[] = rows.map((row) => ({
+    name: row.name,
+    upstreamModel: row.upstreamModel,
+  }));
+  const providers: RegisteredProvider[] = [
+    {
+      id: providerId,
+      name: providerId,
+      protocol: "openai-compatible",
+      apiKey: "test-key",
+      models,
+      priority: 1,
+    },
+  ];
+  router = new Router({ providers });
 });
 
 When("I route model {string}", (model: string) => {
@@ -44,6 +71,11 @@ Then("the route should match provider {string}", (providerId: string) => {
 Then("the routed model should be {string}", (model: string) => {
   expect(routeResult).not.toBeNull();
   expect(routeResult!.model).toBe(model);
+});
+
+Then("the upstream model should be {string}", (upstreamModel: string) => {
+  expect(routeResult).not.toBeNull();
+  expect(routeResult!.upstreamModel).toBe(upstreamModel);
 });
 
 Then("the route should be null", () => {

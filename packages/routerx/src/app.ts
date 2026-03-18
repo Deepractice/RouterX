@@ -22,8 +22,11 @@ import { stream } from "hono/streaming";
 // ============================================================================
 
 export interface RouterXConfig {
-  /** Router configuration (providers, default) */
-  router: RouterConfig;
+  /** Router configuration (providers, default) — creates a new Router */
+  router?: RouterConfig;
+
+  /** Pre-built Router instance — use this for dynamic config (e.g. from D1) */
+  routerInstance?: Router;
 
   /** API key for authenticating incoming requests (optional) */
   apiKey?: string;
@@ -257,7 +260,7 @@ function anthropicStreamFormatter() {
 
 export function createRouterX(config: RouterXConfig) {
   const app = new Hono();
-  const router = new Router(config.router);
+  const router = config.routerInstance ?? new Router(config.router ?? { providers: [] });
 
   // Auth middleware
   if (config.apiKey) {
@@ -303,7 +306,7 @@ export function createRouterX(config: RouterXConfig) {
         return c.json({ error: { message: `Model "${parsed.model}" not found` } }, 404);
       }
 
-      const model = createModel(routeResult.provider, routeResult.model);
+      const model = createModel(routeResult.provider, routeResult.upstreamModel);
       const messages = toAIMessages(parsed);
 
       if (parsed.stream) {

@@ -8,6 +8,21 @@
 export type ProviderProtocol = "openai-compatible" | "anthropic";
 
 /**
+ * Model entry — either a plain string or an object with upstream mapping
+ *
+ * Plain string: model name is the same on both sides
+ * Object: name is what clients request, upstreamModel is what the provider expects
+ *
+ * @example
+ * // Simple — same name both sides
+ * "gpt-4o"
+ *
+ * // Mapped — "deepseek-v3" externally, "ep-xxx" at the provider
+ * { name: "deepseek-v3", upstreamModel: "ep-20250101-xxx" }
+ */
+export type ModelEntry = string | { name: string; upstreamModel: string };
+
+/**
  * A registered upstream provider with its capabilities
  */
 export interface RegisteredProvider {
@@ -27,7 +42,7 @@ export interface RegisteredProvider {
   baseUrl?: string;
 
   /** Models this provider can serve */
-  models: string[];
+  models: ModelEntry[];
 
   /** Priority for model matching (lower = higher priority) */
   priority?: number;
@@ -43,8 +58,11 @@ export interface RouteResult {
   /** The matched provider */
   provider: RegisteredProvider;
 
-  /** The model to use (may be remapped) */
+  /** The model name as requested by the client */
   model: string;
+
+  /** The model name to send to the upstream provider (may differ from model) */
+  upstreamModel: string;
 }
 
 /**

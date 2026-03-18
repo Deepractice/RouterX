@@ -1,6 +1,7 @@
 // Router
 
 export type {
+  ModelEntry,
   ProviderProtocol,
   RegisteredProvider,
   RouteResult,

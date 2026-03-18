@@ -50,6 +50,15 @@ Feature: Router Engine
     When I route model "gpt-4o"
     Then the route should match provider "enabled"
 
+  Scenario: Model name mapping — client name differs from upstream
+    Given a provider "ark" with mapped models:
+      | name       | upstreamModel            |
+      | deepseek-v3| ep-20250101-deepseek-v3  |
+      | doubao-pro | ep-20250101-doubao-pro   |
+    When I route model "deepseek-v3"
+    Then the route should match provider "ark"
+    And the upstream model should be "ep-20250101-deepseek-v3"
+
   Scenario: List all available models
     Given the following providers are registered:
       | id       | name      | protocol          | models                   | priority |
